@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TenantConfig Convertor</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #1a1a1a;
+        color: #fff;
+      }
+      #container {
+        display: flex;
+        align-items: center;
+      }
+      #inputTextArea,
+      #outputTextArea {
+        width: 45%;
+        height: 550px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        background-color: #333;
+        color: #fff;
+      }
+      #options {
+        display: flex;
+        flex-direction: column;
+        margin: 0 20px;
+      }
+
+      button {
+        padding: 10px 20px;
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .save-button {
+        padding: 10px 20px;
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+      }
+
+      .save-icon {
+        width: 20px;
+        height: 20px;
+        margin-right: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1></h1>
+    <div id="container">
+      <textarea id="inputTextArea" placeholder="Paste the Config here">
+{}</textarea
+      >
+      <div id="options">
+        <h4>Remove</h4>
+        <label for="removeProperties">
+          <input type="checkbox" id="removeProperties" checked />Properties
+        </label>
+        <br />
+        <label for="removeContext">
+          <input type="checkbox" id="removeContext" checked />_DEFAULT
+        </label>
+        <br />
+        <br />
+        <h4>Add</h4>
+        <label for="addMetadata">
+          <input type="checkbox" id="addMetadata" checked />Metadata
+        </label>
+        <br />
+        <br />
+        <br />
+        <br />
+        <button onclick="copyToClipboard()">Copy to Clipboard</button>
+
+        <br />
+        <a id="save-button" class="save-button">
+          <img
+            src="https://cdn.iconscout.com/icon/free/png-256/free-save-1779882-1518534.png"
+            class="save-icon"
+            alt="Save Icon"
+          />
+          Save File
+        </a>
+      </div>
+      <textarea id="outputTextArea" readonly></textarea>
+    </div>
+
+    <script>
+      const inputTextArea = document.getElementById("inputTextArea");
+      const outputTextArea = document.getElementById("outputTextArea");
+      const removeProperties = document.getElementById("removeProperties");
+      const removeContext = document.getElementById("removeContext");
+      const addMetadata = document.getElementById("addMetadata");
+      var filename = null;
+
+      inputTextArea.addEventListener("input", updateOutput);
+      removeProperties.addEventListener("input", updateOutput);
+      removeContext.addEventListener("input", updateOutput);
+      addMetadata.addEventListener("input", updateOutput);
+
+      function copyToClipboard() {
+        const outputTextArea = document.getElementById("outputTextArea");
+        outputTextArea.select();
+        document.execCommand("copy");
+      }
+
+      function updateOutput() {
+        const inputText = inputTextArea.value;
+        try {
+          var jsonObject = JSON.parse(inputText);
+
+          if (
+            jsonObject.hasOwnProperty("request") &&
+            jsonObject.hasOwnProperty("response")
+          ) {
+            jsonObject = jsonObject["response"]["configObjects"][0];
+          }
+
+          if (
+            removeProperties.checked &&
+            Object.entries(jsonObject).length != 0
+          ) {
+            if (jsonObject.hasOwnProperty("metaInfo") == false)
+              delete jsonObject.properties;
+            else delete jsonObject["configObjects"][0]["properties"];
+          }
+
+          if (removeContext.checked && Object.entries(jsonObject).length != 0) {
+            if (jsonObject.hasOwnProperty("metaInfo") == false) {
+              var contextLessJson =
+                jsonObject["data"]["contexts"][0]["context"];
+              Object.keys(contextLessJson).forEach(function (key) {
+                if (contextLessJson[key] == "_DEFAULT")
+                  delete contextLessJson[key];
+              });
+              jsonObject["data"]["contexts"][0]["context"] = contextLessJson;
+            } else {
+              var contextLessJson =
+                jsonObject["configObjects"][0]["data"]["contexts"][0][
+                  "context"
+                ];
+              Object.keys(contextLessJson).forEach(function (key) {
+                if (contextLessJson[key] == "_DEFAULT")
+                  delete contextLessJson[key];
+              });
+              jsonObject["configObjects"][0]["data"]["contexts"][0]["context"] =
+                contextLessJson;
+            }
+          }
+          if (
+            addMetadata.checked &&
+            jsonObject.hasOwnProperty("metaInfo") == false &&
+            Object.entries(jsonObject).length != 0
+          ) {
+            var totalOutput = {};
+            if (
+              jsonObject.hasOwnProperty("type") &&
+              jsonObject["type"] == "uiConfig"
+            ) {
+              totalOutput.metaInfo = {
+                dataIndex: "config",
+                collectionName: "configObjects",
+                responseObjectName: "response",
+              };
+              totalOutput.configObjects = [];
+              totalOutput.configObjects.push(jsonObject);
+              jsonObject = totalOutput;
+            }
+          }
+
+          const outputText = JSON.stringify(jsonObject, null, 2);
+          outputTextArea.value = outputText;
+        } catch (error) {
+          outputTextArea.value = "Invalid JSON";
+        }
+      }
+
+      document
+        .getElementById("save-button")
+        .addEventListener("click", function () {
+          const blob = new Blob([outputTextArea.value], {
+            type: "application/json",
+          });
+
+          var jsonObject = JSON.parse(outputTextArea.value);
+
+          filename = jsonObject["configObjects"][0]["id"];
+
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename + ".json";
+
+          a.click();
+
+          URL.revokeObjectURL(url);
+        });
+
+      updateOutput();
+    </script>
+  </body>
+</html>
